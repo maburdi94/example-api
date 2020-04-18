@@ -6,26 +6,26 @@ USE Virun_Inventory;
 
 
 CREATE TABLE RawMaterial (
-    rm INT(6) ZEROFILL NOT NULL AUTO_INCREMENT,
+    rm INT NOT NULL AUTO_INCREMENT,
     name VARCHAR(120) NOT NULL,
-    type VARCHAR(24) NOT NULL,
-    threshold DOUBLE DEFAULT NULL,
+    type VARCHAR(24),
+    threshold DOUBLE DEFAULT 1000.0,
     PRIMARY KEY (rm)
 );
 
 CREATE TABLE Supplier (
-    id INT(4) ZEROFILL AUTO_INCREMENT,
+    id INT AUTO_INCREMENT,
     name VARCHAR(120) NOT NULL,
-    phone VARCHAR(15) NOT NULL,
-    email VARCHAR(50) NOT NULL,
+    phone VARCHAR(15),
+    email VARCHAR(50),
     PRIMARY KEY (id)
 );
 
 CREATE TABLE Inventory (
     lot VARCHAR(20) NOT NULL,
-    rm INT(6) ZEROFILL NOT NULL,
+    rm INT NOT NULL,
     mfr VARCHAR(20) NOT NULL,
-    supplier INT(4) ZEROFILL NOT NULL,
+    supplier INT NOT NULL,
     qty DOUBLE NOT NULL,
     rack VARCHAR(6) NOT NULL,
     arrived DATE NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE Product (
 
 CREATE TABLE ProductFormula (
     product_id INT NOT NULL,
-    rm INT(6) ZEROFILL NOT NULL,
+    rm INT NOT NULL,
     qty DOUBLE NOT NULL,
     FOREIGN KEY (product_id) REFERENCES Product(id),
     FOREIGN KEY (rm) REFERENCES RawMaterial(rm),
@@ -97,9 +97,9 @@ CREATE TABLE UserInv (
 
 CREATE TABLE PurchaseInventory (
     id INT NOT NULL AUTO_INCREMENT,
-    rm INT(6) ZEROFILL NOT NULL,
+    rm INT NOT NULL,
     qty DOUBLE NOT NULL,
-    supplier INT(4) ZEROFILL,
+    supplier INT,
     status ENUM ('INCOMPLETE', 'PENDING', 'RECEIVED') DEFAULT 'INCOMPLETE',
     placed DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),

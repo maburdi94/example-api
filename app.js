@@ -9,6 +9,7 @@ let Auth = require('./auth');
 let Inventory = require('./inventory');
 let Order = require('./orders');
 let Products = require('./products');
+let Users = require('./users');
 
 
 const port = process.env.PORT || 3000;
@@ -22,49 +23,66 @@ async function onRequest(request, response) {
 
     let pathname = request.url || request.path;
 
-    try {
+    response.setHeader('Access-Control-Allow-Origin', '*');
 
-        // Access API endpoint
-        let match = /^\/api\/(\w+)/.exec(pathname);
+    if (request.method === 'OPTIONS') {
+        response.statusCode = 204;
+        response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        response.setHeader('Access-Control-Allow-Methods', 'POST, GET, PATCH, OPTIONS, DELETE');
+    } else {
+        try {
 
-        if (match) {
+            // Access API endpoint
+            let match = /^\/api\/([-\w]+)/.exec(pathname);
 
-            let route = match[1];
+            if (match) {
 
-            if (route === 'auth') {
-               return Auth.route(request, response);
-            }
+                let route = match[1];
 
-            if ( auth(request, response) ) {
-
-                response.setHeader('Access-Control-Allow-Origin', '*');
-
-                switch (route) {
-                    case 'inventory':
-                        return Inventory.route(request, response);
-                    case 'orders':
-                        return Order.route(request, response);
-                    case 'products':
-                        return Products.route(request, response);
-                    default:
-                        response.statusCode = 404;
+                if (route === 'auth') {
+                    return Auth.route(request, response);
                 }
+
+                if ( auth(request, response) ) {
+
+                    switch (route) {
+                        case 'suppliers':
+                        case 'raw-materials':
+                        case 'inventory':
+                            return Inventory.route(request, response);
+                        case 'orders':
+                            return Order.route(request, response);
+                        case 'products':
+                            return Products.route(request, response);
+                        case 'users':
+                            return Users.route(request, response);
+                        default:
+                            response.statusCode = 404;
+                    }
+                } else {
+                    response.statusCode = 401;
+                    response.setHeader("WWW-Authenticate", "Bearer realm=\"Access to server\"");
+                }
+
             } else {
-                response.setHeader("WWW-Authenticate", "Bearer realm=\"Access to server\"");
-                response.statusCode = 401;
+                response.statusCode = 404;
+                response.write('Resource not found');
             }
 
-        } else {
-            response.statusCode = 404;
+        } catch (e) {
+            response.statusCode = 500;
+            response.write('Internal error');
         }
-
-        response.end('Resource not found');
-
-    } catch (e) {
-        response.statusCode = 500;
-        response.end('Internal error');
     }
 
+    response.end();
+}
+
+
+
+function addCORS(response) {
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    return response;
 }
 
 

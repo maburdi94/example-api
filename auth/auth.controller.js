@@ -5,7 +5,7 @@ let {SECRET} = require('../config');
 
 let {getPostData} = require('../utils/http');
 
-let {query} = require('../utils/sql');
+let mysql = require('../utils/sql');
 
 
 /**
@@ -25,17 +25,19 @@ module.exports.login = async function(request, response) {
             response.write("Empty login fields not allowed.");
         } else {
 
-            let q = `SELECT username, email, role FROM UserInv WHERE email = \'${email}\';`;
+            let q = `SELECT * FROM UserInv WHERE email = \'${email}\';`;
 
-            let result = await query(q);
+            let [results] = await mysql.query(q);
 
-            if (result) {
+            if (results) {
 
-                let user = result[0];
+                let user = results[0];
 
                 if (password === user.password) {
 
-                    let token = jwt.sign(user, SECRET);
+                    delete user.password;
+
+                    let token = jwt.sign({...user}, SECRET);
 
                     response.statusCode = 200;
                     response.write(JSON.stringify({token}));
@@ -79,7 +81,7 @@ module.exports.signup = async function(request, response) {
             response.write("Passwords do not match.");
         } else {
 
-            let results = await query(`INSERT INTO UserInv (firstname, lastname, email, password, role) 
+            let results = await mysql.query(`INSERT INTO UserInv (firstname, lastname, email, password, role) 
                 VALUES (\'${firstName}\', \'${lastName}\', \'${email}\', \'${password}\', \'admin\');`);
 
             if (results) {

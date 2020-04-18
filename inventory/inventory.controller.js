@@ -3,19 +3,7 @@ let url = require('url');
 
 let {getPostData} = require('../utils/http');
 
-let {query, beginTransaction} = require('../utils/sql');
-
-
-module.exports.getFilterMeta = async function({url}, response) {
-    let result = {};
-
-    result.type = await query(`SELECT DISTINCT type FROM RawMaterial;`);
-
-    response.statusCode = 200;
-    response.setHeader('Content-Type', 'application/json');
-    response.end(JSON.stringify(result, null, 2));
-};
-
+let mysql = require('../utils/sql');
 
 module.exports.getInventory = async function(request, response) {
 
@@ -23,10 +11,6 @@ module.exports.getInventory = async function(request, response) {
 
     // This is where we will put the response payload
     let result = {};
-
-    // Results
-    let items = [],
-        total = 1;
 
     try {
 
@@ -42,7 +26,7 @@ module.exports.getInventory = async function(request, response) {
                     searches.push(`${matches[1]} LIKE \'${value}%\'`);
                 }
                 return searches;
-            }, []);
+            }, []).join(' OR ');
 
         // Sorting
         let sort = params['sort'] || null;
@@ -51,21 +35,32 @@ module.exports.getInventory = async function(request, response) {
         // Filters
         let type = params['type'];
 
-        let lots = (params['lot'] || []).map(lot => `\'${lot}\'`).join(',');
+        let lots = params['lot'] ? Array.isArray(params['lot']) ? params['lot'] : [params['lot']] : [];
+        lots = lots.map(lot => `\'${lot}\'`).join(',');
 
+        console.log(params['lot'], lots)
 
         let innerSelect = `SELECT * FROM (SELECT 
-         rm,lot,RM.name as name,mfr, qty,type,S.name as supplier,S.id as s_id,arrived,threshold,rack
+         rm,
+         lot,
+         RM.name as name,
+         mfr, 
+         qty,
+         type,
+         S.name as supplier,
+         arrived,
+         threshold,
+         rack
          FROM Inventory I
          LEFT JOIN RawMaterial RM USING (rm)
          LEFT JOIN Supplier S ON (id = supplier)) T
          WHERE 1=1
          ${lots ? ` AND lot IN (${lots})` : ''}
          ${type ? ` AND type = \"${type}\"` : ''}
-         ${searches.length ? ` AND ${searches.join(' OR ')}` : ''}`;
+         ${searches ? ` AND ${searches}` : ''}`;
 
 
-        [items, [{total}]] = await query(`
+        let [[items, [{total}]]] = await mysql.query(`
         SELECT * FROM (${innerSelect}) T
              ${sort ? `ORDER BY ${sort} ${order}` : ''}
              ${pageSize ? `LIMIT ${(page - 1) * pageSize}, ${pageSize}` : ''};
@@ -88,66 +83,150 @@ module.exports.getInventory = async function(request, response) {
 };
 
 
-module.exports.addRawMaterial = async function(request, response){
-    let items = await getPostData(request);
-    // insert objects (items) into the Virun database using MySQL Insert
-    // INSERT INTO [table] VALUES [obj.rm_name, obj.rm_number, obj.rm_type...]
-    /*-------example---------------
-        rm_name: 'test',
-        rm_number: '10',
-        rm_type: 'water'
-    -----------------------------*/
-    console.log(items);
-    let rm_quantity = 0;
-    console.log("test1");
-    let rawMaterial = `INSERT INTO rawmaterial VALUES ("`+items.rm_number+`", "`+items.rm_name+`",  "`+items.rm_type+`");`;
-    console.log("Test2");
-    let inventory = `INSERT INTO inventory VALUES (null, "`+items.rm_number+`", "`+rm_quantity+`");`;
-    console.log(typeof items.rm_number);
-    try
-    {
-        query(rawMaterial);
-        console.log("Test3");
-        query(inventory);
-        console.log("test4");
+
+
+
+module.exports.deleteInventory = async function(request, response) {
+
+    let {query: params} = url.parse(request.url, true);
+
+    let lots = Array.isArray(params['lot']) ? params['lot'] : [params['lot']];
+
+    let connection = await mysql.getConnection();
+
+    let totalAffected = 0;
+    try {
+        await connection.query('START TRANSACTION');
+
+        for (let lot of lots) {
+            let [results] = await mysql.query(`DELETE FROM Inventory WHERE lot = \'${lot}\';`);
+            totalAffected += results.affectedRows;
+        }
+
+        await connection.query('COMMIT');
         response.statusCode = 200;
-    } catch(e) {
+
+    } catch (e) {
+
+        await connection.query('ROLLBACK');
         response.statusCode = 500;
     }
-    response.end();
-}
+
+    response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify({totalAffected}, null, 2));
+};
+
+
+
+
 
 
 module.exports.addInventory = async function(request, response) {
 
-    let items = await getPostData(request);
-    // insert object (items) values into the Virun database using MySQL INSERT
-    // INSERT INTO [table] VALUES [obj.name, obj.description, obj.rm-name...]
-    /*-------example---------------
-        product_number: '1',
-        product_name: 'test',
-        product_descripton: 'test',
-        product_serving_size: '2',
-        rm_name: 'Process Water',
-        rm_serving_size: '2'
-    -----------------------------*/
-    console.log(items);
-    let rm_quantity = 0;
-    let rm_number = 0;
-    let product = `INSERT INTO product VALUES ("`+items.product_number+`", "`+items.product_name+`", "`+items.product_description+`", "`+items.product_serving_size+`");`;
-    let prodIngredient = `INSERT INTO productingredient VALUES ("`+items.product_number+`", "`+rm_number+`", "`+items.rm_serving_size+`");`;;
-    let inventory = `INSERT INTO inventory VALUES ("`+items.product_number+`", "`+rm_number+`", "`+rm_quantity+`");`
-    
-    try
-    {
-        query(product);
-        query(prodIngredient);
-        query(inventory);
-        response.statusCode = 200;
-    } catch(e) {
-        response.statusCode = 500;
+    let item = await getPostData(request);
+
+    let {
+        rm,
+        type,
+        name,
+        lot,
+        mfr,
+        supplier,
+        qty,
+        arrived,
+        rack,
+    } = item,
+        threshold;
+
+    let result = {},
+        errors = [];
+
+
+    // Find if a Raw Material already exists for this RM #.
+    let [results] = await mysql.query(`SELECT * FROM RawMaterial WHERE rm = ${rm}`);
+
+    if (!(results.length)) {
+        errors.push(`Invalid request. Could not find raw material with RM ${rm}`);
     }
+
+    // if (!/L(18|19|20)[0-9]{4}/.test(lot)) {
+    //     errors.push(`Invalid lot #: ${lot}. Must have form: L[2-digit year][####].`);
+    // }
+
+    try {
+        new Date(arrived)
+    } catch (e) {
+        errors.push(new Error("Date arrived must be a valid date string."));
+    }
+
+    [results] = await mysql.query(`SELECT id FROM Supplier WHERE name = \'${supplier}\';`);
+
+    if (!(results.length)) {
+        let [results] = await mysql.query(`INSERT INTO Supplier (name) VALUES (\'${supplier}\');`);
+        supplier = results.insertId;
+    } else {
+        supplier = results[0].id;
+    }
+
+
+    if (!errors.length) {
+
+        let sql = `INSERT INTO Inventory (
+            lot,
+            rm,
+            mfr,
+            supplier,
+            qty,
+            rack,
+            arrived
+            ) VALUES (
+                \'${lot}\',
+                ${rm},
+                \'${mfr}\',
+                ${supplier},
+                ${qty},
+                \'${rack}\',
+                \'${arrived}\'
+            )`;
+
+        console.log(sql);
+
+        await mysql.query(sql);
+
+        response.statusCode = 200;
+
+    } else {
+
+        response.statusCode = 400;
+        result.errors = errors.join('\n');
+    }
+
+
+    response.write(JSON.stringify(result));
+
+
+
     response.end();
+};
+
+
+
+module.exports.getSuppliers =  async function (request, response) {
+
+    let [results] = await mysql.query(`SELECT DISTINCT name, name as value FROM Supplier;`);
+
+    response.statusCode = 200;
+    response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify(results, null, 2));
+};
+
+module.exports.getRawMaterials =  async function (request, response) {
+
+    let [results] = await mysql.query(`SELECT DISTINCT rm, name FROM RawMaterial;`);
+
+    response.statusCode = 200;
+    response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify(results, null, 2));
 };
 
 
@@ -156,62 +235,106 @@ module.exports.addInventory = async function(request, response) {
  * If only one item is being updated, it should still be inside an Array as the single entry.
  * @param request
  * @param response
- * @param URL
  * @return {Promise<void>}
  */
-module.exports.updateInventory = async function (request, response, {searchParams: params}) {
+module.exports.updateInventory = async function (request, response) {
 
-    let {url, method} = request;
+    let method = request.method;
 
-    let {items} = await getPostData(request);
+    let data = await getPostData(request);
 
-    if (!Array.isArray(items)) {
-        throw new Error("Resource at " + method + " " + url + " expects an array.");
-    }
+    if (method === 'PUT') {
 
-    let transaction = await beginTransaction();
+        let items = Array.isArray(data) ? data : [data];
 
-    try {
-        for (let item of items) {
-            transaction.query(`
-                UPDATE Inventory 
-                SET 
-                    qty = ${item.qty}, 
-                    rack = \'${item.rack}\'
-                WHERE
-                    lot = \'${item.lot}\';`);
+        let connection = await mysql.getConnection();
+
+        try {
+            await connection.query('START TRANSACTION');
+
+            for (let item of items) {
+                // await connection.query(`
+                //     UPDATE Inventory
+                //     SET
+                //         qty = ${item.qty},
+                //         rack = \'${item.rack}\'
+                //     WHERE
+                //         lot = \'${item.lot}\';`);
+            }
+
+            await connection.query('COMMIT');
+            response.statusCode = 200;
+
+        } catch (e) {
+
+            await connection.query('ROLLBACK');
+            response.statusCode = 500;
         }
-        transaction.commit(); // No errors. Commit changes.
-        response.statusCode = 200;
-    } catch (e) {
-        transaction.rollback(); // Errors! Rollback transaction.
-        response.statusCode = 500;
+
+    } else if (method === 'PATCH') {
+
+        let {query: params} = url.parse(request.url, true);
+
+        let {
+            rm,
+            type,
+            name,
+            lot,
+            mfr,
+            supplier,
+            qty,
+            arrived,
+            rack,
+        } = data;
+
+        let sql = `UPDATE Inventory
+            SET
+                
+        `;
+
+        let fields = [];
+        if (lot) fields.push(`lot = \'${lot}\'`);
+        if (rm) fields.push(`rm = ${rm}`);
+        // if (type) fields.push(`type = \'${rm}\'`);
+        // if (name) fields.push(`name = \'${rm}\'`);
+        if (mfr) fields.push(`mfr = \'${mfr}\'`);
+        if (supplier) {
+
+            let [results] = await mysql.query(`SELECT id FROM Supplier WHERE name = \'${supplier}\';`);
+
+            if (!(results.length)) {
+                [results] = await mysql.query(`INSERT INTO Supplier (name) VALUES (\'${supplier}\');`);
+                supplier = results.insertId;
+            } else {
+                supplier = results[0].id;
+            }
+
+            fields.push(`supplier = ${supplier}`);
+        }
+        if (qty) fields.push(`qty = ${qty}`);
+        if (arrived) {
+            fields.push(`arrived = \'${new Date(arrived).toISOString().replace(/[TZ]/g, ' ')}\'`);
+        }
+        if (rack) fields.push(`rack = UPPER(\'${rack}\')`);
+
+        sql += fields.join(',\n');
+
+        sql += ` WHERE lot = \'${params.lot}\';`;
+
+        try {
+            await mysql.query(sql);
+            response.statusCode = 200;
+        } catch (e) {
+            console.log(e);
+            response.statusCode = 500;
+        }
+
     }
+
     response.end();
 };
 
 
-
-
-
-
-module.exports.createPurchaseOrder = async function(request, response, {searchParams: params}) {
-
-    let data = await getPostData(request);
-
-    if (!Array.isArray(data)) {
-        response.statusCode = 400;
-        response.write("POST body expected to be an array.\n");
-        response.end();
-    } else {
-        for (let item of data) {
-            let sql = `INSERT INTO PurchaseInventory (${Object.keys(item).join(', ')}) 
-                VALUES(${Object.values(item).join(', ')})`;
-            console.log(sql);
-            await query(sql);
-        }
-    }
-};
 
 
 module.exports.getPurchases = async function (request, response, {searchParams: params}) {
@@ -234,7 +357,7 @@ module.exports.getPurchases = async function (request, response, {searchParams: 
         // Filters
         let search = params.get('search');
 
-        [items, [{pageCount}]] = await query(`SELECT * 
+        [items, [{pageCount}]] = await mysql.query(`SELECT * 
         FROM (
              SELECT 
                 PO.id,

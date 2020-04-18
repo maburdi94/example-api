@@ -46,23 +46,24 @@ module.exports.getPostData = function(request, response) {
 };
 
 
-function getRequestAuthToken(request) {
-    let cookies = request.headers.cookie || String();
-    let match = cookies.match(/auth_token=([^\s;]*)/) || [null];
-    return match[1];
-}
-module.exports.getRequestAuthToken = getRequestAuthToken;
-
-
 
 module.exports.auth = function(request, response) {
-    const token = getRequestAuthToken(request);
 
     try {
-         jwt.verify(token, SECRET);
+        let auth = request.headers.authorization || String();
+
+        let match = /^Bearer ([-.\w]+)/.exec(auth);
+
+        if (match) {
+            let decoded = jwt.verify(match[1], SECRET);
+            console.log('Valid JWToken: ', decoded);
+            return true;
+        } else {
+            return false;
+        }
+
     } catch (e) {
+        console.error(e);
         return false;
     }
-
-    return true;
 };
