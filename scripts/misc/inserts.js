@@ -92,7 +92,7 @@ async function insertInventory(count = 100) {
 
         let year = parseInt('20' + lot.slice(1, 3), 10);
 
-        let date = getRandomDate(new Date(year, 0), new Date(year, 11)).toISOString().replace(/[TZ]/, ' ');
+        let date = getRandomDate(new Date(year, 0), new Date(year, 11)).toISOString().replace(/[TZ]/g, ' ');
 
         let sql = `INSERT INTO Inventory VALUES(
             \'${lot}\',
