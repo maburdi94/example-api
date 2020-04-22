@@ -29,7 +29,7 @@ fn_recv = ['Inventory Receiving and Internal Lot Code List (2016).xlsx',
 #if it doesn't exist, download from the repo (https://github.com/maburdi94/virun-api/tree/master/scripts/misc
 for fn in fn_recv:
 	if not os.path.exists(fn):
-		url = "https://github.com/maburdi94/virun-api/raw/master/scripts/misc/{}".format(fn.replace(" ", "%20"))
+		url = "https://github.com/maburdi94/virun-api/raw/master/scripts/misc/spreadsheets/{}".format(fn.replace(" ", "%20"))
 		print(url)
 		try:
 			urllib.request.urlretrieve(url, fn)
