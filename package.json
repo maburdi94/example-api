@@ -3,7 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "nodemon app.js"
+    "start": "nodemon app.js",
+    "db": "mysql -u root -p -s < scripts/mysql/all_in_one.sql",
+    "suppImport": "py scripts/misc/suppImport.py",
+    "invImport": "py scripts/misc/invImport.py"
   },
   "dependencies": {
     "cookie": "0.4.0",

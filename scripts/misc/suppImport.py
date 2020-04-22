@@ -9,7 +9,8 @@
 from openpyxl import load_workbook
 import mysql.connector
 import string
-import os.path
+import os
+import urllib.request
 
 #attempt to connect to the database
 print("Connecting to database...")
@@ -30,10 +31,11 @@ fn_recv = ['Inventory Receiving and Internal Lot Code List (2016).xlsx',
 for fn in fn_recv:
 	if not os.path.exists(fn):
 		url = "https://github.com/maburdi94/virun-api/raw/master/scripts/misc/spreadsheets/{}".format(fn.replace(" ", "%20"))
-		print(url)
+		print("Retrieving sheet from {}.".format(url))
 		try:
 			urllib.request.urlretrieve(url, fn)
-		except:
+		except Exception as e:
+			print(e)
 			print("could not retrieve sheet {}.".format(fn))
 			exit(1)
 
@@ -130,4 +132,9 @@ for supp in uniqueSuppNames:
 
 db.commit()
 db.close()
+#remove the files we downloaded
+for fn in fn_recv:
+	os.remove(fn)
+	print("Removed file {}".format(fn))
+
 print("Done.")

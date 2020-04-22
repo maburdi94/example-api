@@ -14,7 +14,7 @@
 from openpyxl import load_workbook
 import mysql.connector
 import datetime
-import os.path
+import os
 import urllib.request
 import string
 
@@ -27,14 +27,7 @@ except:
 	print("Database connection failed.")
 	quit(1)
 
-fn = 'Internal Lot Code Inventory Sheet.xlsx'
-#load the spreadsheet, this will take a while
-print("Loading Spreadsheet {}...".format(fn))
-wb = load_workbook(filename = fn, data_only=True)
-#retrieve the production inventory worksheet
-prodSheet = wb['PRODUCTION']
-
-
+fn_inv = 'Internal Lot Code Inventory Sheet.xlsx'
 #open the rm receiving spreadsheets
 #we want a dictionary of years mapping to their respective spreadsheets
 #i.e. recvSheets["2020"] maps to the 2020 receiving sheet
@@ -43,6 +36,13 @@ fn_recv = ['Inventory Receiving and Internal Lot Code List (2016).xlsx',
 			 'Inventory Receiving and Internal Lot Code List (2018).xlsx',
 			 'Inventory Receiving and Internal Lot Code List (2019).xlsx',
 			 'Internal Receiving Raw Materials 2020.xlsx']
+
+#get the inventory spreadsheet if it doesn't already exist in the local directory
+url = "https://github.com/maburdi94/virun-api/raw/master/scripts/misc/spreadsheets/{}".format(fn_inv.replace(" ", "%20"))
+try:
+	urllib.request.urlretrieve(url, fn_inv)
+except:
+	print("Could not retrieve sheet {}.".format(fn_inv))
 
 #check if each file in fn_recv exists
 #if it doesn't exist, download from the repo (https://github.com/maburdi94/virun-api/tree/master/scripts/misc
@@ -58,6 +58,12 @@ for fn in fn_recv:
 
 recvWBs = {}
 recvSheets = {}
+
+#load the inventory spreadsheet, this will take a while
+print("Loading Spreadsheet {}...".format(fn_inv))
+wb = load_workbook(filename = fn_inv, data_only=True)
+#retrieve the production inventory worksheet
+prodSheet = wb['PRODUCTION']
 
 
 for fn in fn_recv:
@@ -236,4 +242,9 @@ while(True):
 		db.close()
 		break
 #TODO: delete the sheet files after we're done?
+for fn in fn_recv:
+	os.remove(fn)
+	print("Removed file {}".format(fn))
+os.remove(fn_inv)
+
 print("Done.")

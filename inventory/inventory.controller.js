@@ -23,7 +23,7 @@ module.exports.getInventory = async function(request, response) {
             .reduce((searches, [name, value]) => {
                 let matches = /(\w+)_like/.exec(name);
                 if (matches) {
-                    searches.push(`${matches[1]} LIKE \'${value}%\'`);
+                    searches.push(`${matches[1]} LIKE \'%${value}%\'`);
                 }
                 return searches;
             }, []).join(' OR ');
@@ -40,11 +40,11 @@ module.exports.getInventory = async function(request, response) {
 
         console.log(params['lot'], lots)
 
-        let innerSelect = `SELECT * FROM (SELECT 
+        let innerSelect = `SELECT * FROM (SELECT
          rm,
          lot,
          RM.name as name,
-         mfr, 
+         mfr,
          qty,
          type,
          S.name as supplier,
@@ -64,7 +64,7 @@ module.exports.getInventory = async function(request, response) {
         SELECT * FROM (${innerSelect}) T
              ${sort ? `ORDER BY ${sort} ${order}` : ''}
              ${pageSize ? `LIMIT ${(page - 1) * pageSize}, ${pageSize}` : ''};
-         
+
          SELECT Count(*) as total FROM (${innerSelect}) T;`);
 
         result = {
@@ -160,7 +160,6 @@ module.exports.addInventory = async function(request, response) {
     }
 
     [results] = await mysql.query(`SELECT id FROM Supplier WHERE name = \'${supplier}\';`);
-
     if (!(results.length)) {
         let [results] = await mysql.query(`INSERT INTO Supplier (name) VALUES (\'${supplier}\');`);
         supplier = results.insertId;
@@ -289,7 +288,7 @@ module.exports.updateInventory = async function (request, response) {
 
         let sql = `UPDATE Inventory
             SET
-                
+
         `;
 
         let fields = [];
@@ -357,9 +356,9 @@ module.exports.getPurchases = async function (request, response, {searchParams: 
         // Filters
         let search = params.get('search');
 
-        [items, [{pageCount}]] = await mysql.query(`SELECT * 
+        [items, [{pageCount}]] = await mysql.query(`SELECT *
         FROM (
-             SELECT 
+             SELECT
                 PO.id,
                 rm,
                 RM.name as name,
