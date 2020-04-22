@@ -19,7 +19,7 @@ try:
 except:
 	print("Database connection failed.")
 	quit(1)
-filenames = ['Inventory Receiving and Internal Lot Code List (2016).xlsx',
+fn_recv = ['Inventory Receiving and Internal Lot Code List (2016).xlsx',
 			 'Inventory Receiving and Internal Lot Code List (2017).xlsx',
 			 'Inventory Receiving and Internal Lot Code List (2018).xlsx',
 			 'Inventory Receiving and Internal Lot Code List (2019).xlsx',
@@ -48,7 +48,7 @@ for fn in fn_recv:
 recvWBs = {}
 recvSheets = {}
 
-for fn in filenames:
+for fn in fn_recv:
 	year = str().join(filter(str.isdigit, fn))
 	print("Loading Spreadsheet {}...".format(fn))
 	recvWBs[year] = load_workbook(filename = fn, data_only = True)

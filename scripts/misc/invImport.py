@@ -16,6 +16,7 @@ import mysql.connector
 import datetime
 import os.path
 import urllib.request
+import string
 
 #attempt to connect to the database
 print("Connecting to database...")
@@ -29,9 +30,9 @@ except:
 fn = 'Internal Lot Code Inventory Sheet.xlsx'
 #load the spreadsheet, this will take a while
 print("Loading Spreadsheet {}...".format(fn))
-#wb = load_workbook(filename = fn, data_only=True)
+wb = load_workbook(filename = fn, data_only=True)
 #retrieve the production inventory worksheet
-#prodSheet = wb['PRODUCTION']
+prodSheet = wb['PRODUCTION']
 
 
 #open the rm receiving spreadsheets
@@ -57,11 +58,18 @@ for fn in fn_recv:
 
 recvWBs = {}
 recvSheets = {}
-for ss in fn_recv:
-	year = str().join(filter(str.isdigit, ss))
-	print("Loading Spreadsheet {}...".format(ss))
-	recvWBs[year] = load_workbook(filename = ss, data_only = True)
-	recvSheets[year] = recvWBs[year]['Internal Receiving Log {}'.format(year)]
+
+
+for fn in fn_recv:
+	year = str().join(filter(str.isdigit, fn))
+	print("Loading Spreadsheet {}...".format(fn))
+	recvWBs[year] = load_workbook(filename = fn, data_only = True)
+	#2020's sheet is titled slightly differently
+	if "2020" in fn:
+		recvSheets[year] = recvWBs[year]['Internal Receiving Log {}'.format(year)]
+	else:
+		recvSheets[year] = recvWBs[year]['REC-01 Receiving Log {}'.format(year)]
+
 
 
 def getCellValue(sheet, column, row):
@@ -81,6 +89,9 @@ def goToNextLotorRM(sheet, curRow, curRM):
 			break
 	#result should now store the row value of a lot within the current RM, or a new RM to process
 	return (result, newLot, newRM)
+
+def offsetChar(s, offset):
+	return chr(ord(s)+offset)
 
 
 row = 1
@@ -163,19 +174,33 @@ while(True):
 				rcvYear = str(rcvDate.year)
 			except:
 				rcvYear = "N/A"
+			offset16 = 0
+
 			if rcvYear in recvSheets:
 				#find the row in the sheet corresponding to the lot number
-				rcvrow = 2
-				while(getCellValue(recvSheets[year], "A", rcvrow) != None):
-					v_LotNum = getCellValue(recvSheets[year], "A", rcvrow)
+				#instead of writing slightly different logic for 2016, add an offset to the column we're selecting from if the lot is from 2016
+				if rcvYear == "2016":
+					offset16 = 3
+					rcvrow = 4
+				else:
+					offset16 = 0
+					rcvrow = 2
+				while(getCellValue(recvSheets[rcvYear], offsetChar("A", offset16), rcvrow) != None):
+					v_LotNum = getCellValue(recvSheets[rcvYear], offsetChar("A", offset16), rcvrow)
 					if v_LotNum == lotNum:
 						break
 					rcvrow += 1
 				#retrieve the mfr lot number for this lotTup
-				temp[2] = getCellValue(recvSheets[year], "D", rcvrow)
+				temp[2] = getCellValue(recvSheets[rcvYear], offsetChar("D", offset16), rcvrow)
 				print(temp[2])
+
+
+
 				#query the database to get the supplier id corresponding to the row's supplier name
-				suppName = getCellValue(recvSheets[year], "C", rcvrow)
+				#in an effort to reduce duplicate Supplier entries, we stripped all whitepsace and forced all names uppercase, so we do the same here.
+				#also removed punctuation
+				suppName = str(getCellValue(recvSheets[rcvYear], offsetChar("C", offset16), rcvrow)).strip().upper()
+				suppName = suppName.translate(str.maketrans('','',string.punctuation))
 				suppQry = "SELECT id FROM Supplier WHERE name = %s"
 				dbCursor.execute(suppQry, (suppName, ))
 				qryResult = dbCursor.fetchall()
@@ -210,4 +235,5 @@ while(True):
 		db.commit()
 		db.close()
 		break
+#TODO: delete the sheet files after we're done?
 print("Done.")
