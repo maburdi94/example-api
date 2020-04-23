@@ -23,66 +23,51 @@ async function onRequest(request, response) {
 
     let pathname = request.url || request.path;
 
-    response.setHeader('Access-Control-Allow-Origin', '*');
+    try {
 
-    if (request.method === 'OPTIONS') {
-        response.statusCode = 204;
-        response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-        response.setHeader('Access-Control-Allow-Methods', 'POST, GET, PATCH, OPTIONS, DELETE');
-    } else {
-        try {
+        // Access API endpoint
+        let match = /^\/([-\w]+)/.exec(pathname);
 
-            // Access API endpoint
-            let match = /^\/api\/([-\w]+)/.exec(pathname);
+        if (match) {
 
-            if (match) {
+            let route = match[1];
 
-                let route = match[1];
-
-                if (route === 'auth') {
-                    return Auth.route(request, response);
-                }
-
-                if ( auth(request, response) ) {
-
-                    switch (route) {
-                        case 'suppliers':
-                        case 'raw-materials':
-                        case 'inventory':
-                            return Inventory.route(request, response);
-                        case 'orders':
-                            return Order.route(request, response);
-                        case 'products':
-                            return Products.route(request, response);
-                        case 'users':
-                            return Users.route(request, response);
-                        default:
-                            response.statusCode = 404;
-                    }
-                } else {
-                    response.statusCode = 401;
-                    response.setHeader("WWW-Authenticate", "Bearer realm=\"Access to server\"");
-                }
-
-            } else {
-                response.statusCode = 404;
-                response.write('Resource not found');
+            if (route === 'auth') {
+                return Auth.route(request, response);
             }
 
-        } catch (e) {
-            response.statusCode = 500;
-            response.write('Internal error');
+            if ( auth(request, response) ) {
+
+                switch (route) {
+                    case 'suppliers':
+                    case 'raw-materials':
+                    case 'inventory':
+                        return Inventory.route(request, response);
+                    case 'orders':
+                        return Order.route(request, response);
+                    case 'products':
+                        return Products.route(request, response);
+                    case 'users':
+                        return Users.route(request, response);
+                    default:
+                        response.statusCode = 404;
+                }
+            } else {
+                response.statusCode = 401;
+                response.setHeader("WWW-Authenticate", "Bearer realm=\"Access to server\"");
+            }
+
+        } else {
+            response.statusCode = 404;
+            response.write('Resource not found');
         }
+
+    } catch (e) {
+        response.statusCode = 500;
+        response.write('Internal error');
     }
 
     response.end();
-}
-
-
-
-function addCORS(response) {
-    response.setHeader('Access-Control-Allow-Origin', '*');
-    return response;
 }
 
 

@@ -8,7 +8,7 @@ async function onRequest(request, response) {
     let method = request.method;
     let url = request.url || request.path;
 
-    let path = [...request.url.slice(4 /* remove /api */).matchAll(/\/([-\w]+)/)].map(arr => arr[1]);
+    let path = [...url.matchAll(/\/([-\w]+)/)].map(arr => arr[1]);
 
     if (path[0] === 'users') {
         if (method === 'GET') return getUsers(request, response);

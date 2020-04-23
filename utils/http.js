@@ -46,6 +46,12 @@ module.exports.getPostData = function(request, response) {
 };
 
 
+module.exports.getTokenPayload = function(request, response) {
+    let auth = request.headers.authorization || String();
+    let match = /^Bearer ([-.\w]+)/.exec(auth);
+    return jwt.decode(match);
+};
+
 
 module.exports.auth = function(request, response) {
 
@@ -55,8 +61,7 @@ module.exports.auth = function(request, response) {
         let match = /^Bearer ([-.\w]+)/.exec(auth);
 
         if (match) {
-            let decoded = jwt.verify(match[1], SECRET);
-            console.log('Valid JWToken: ', decoded);
+            jwt.verify(match[1], SECRET);
             return true;
         } else {
             return false;
