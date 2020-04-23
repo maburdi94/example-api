@@ -6,7 +6,7 @@ USE Virun_Inventory;
 
 
 CREATE TABLE RawMaterial (
-    rm INT(6) ZEROFILL NOT NULL,
+    rm INT NOT NULL,
     name VARCHAR(120) NOT NULL,
     type VARCHAR(24),
     threshold DOUBLE DEFAULT 1000.0,
@@ -14,7 +14,7 @@ CREATE TABLE RawMaterial (
 );
 
 CREATE TABLE Supplier (
-    id INT(4) ZEROFILL AUTO_INCREMENT,
+    id INT AUTO_INCREMENT,
     name VARCHAR(120) NOT NULL,
     phone VARCHAR(15),
     email VARCHAR(50),
@@ -23,9 +23,9 @@ CREATE TABLE Supplier (
 
 CREATE TABLE Inventory (
     lot VARCHAR(20) NOT NULL,
-    rm INT(6) ZEROFILL NOT NULL,
+    rm INT NOT NULL,
     mfr VARCHAR(20) NOT NULL,
-    supplier INT(4) ZEROFILL NOT NULL,
+    supplier INT NOT NULL,
     qty DOUBLE NOT NULL,
     rack VARCHAR(6) NOT NULL,
     arrived DATE NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE Product (
 
 CREATE TABLE ProductFormula (
     product_id INT NOT NULL,
-    rm INT(6) ZEROFILL NOT NULL,
+    rm INT NOT NULL,
     qty DOUBLE NOT NULL,
     FOREIGN KEY (product_id) REFERENCES Product(id),
     FOREIGN KEY (rm) REFERENCES RawMaterial(rm),
@@ -97,9 +97,9 @@ CREATE TABLE UserInv (
 
 CREATE TABLE PurchaseInventory (
     id INT NOT NULL AUTO_INCREMENT,
-    rm INT(6) ZEROFILL NOT NULL,
+    rm INT NOT NULL,
     qty DOUBLE NOT NULL,
-    supplier INT(4) ZEROFILL NOT NULL,
+    supplier INT NOT NULL,
     status ENUM ('INCOMPLETE', 'PENDING', 'RECEIVED') DEFAULT 'INCOMPLETE',
     placed DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -111,11 +111,28 @@ CREATE TABLE PurchaseOrderProducts (
     order_id INT NOT NULL,
     product_id INT NOT NULL,
     units   INT NOT NULL,
-    supplier VARCHAR(50) NOT NULL,
+    supplier INT NOT NULL,
     PRIMARY KEY (order_id, product_id),
     FOREIGN KEY (order_id) REFERENCES PurchaseInventory(id),
     FOREIGN KEY (product_id) REFERENCES Product(id)
 );
+
+CREATE TABLE BatchRecord (
+  id INT NOT NULL AUTO_INCREMENT,
+  product_id INT NOT NULL,
+  batch_size INT NOT NULL,
+  PRIMARY KEY (id),
+  FOREIGN KEY (product_id) REFERENCES Product(id),
+);
+
+CREATE TABLE BatchRecordIngredient (
+  batch_id INT NOT NULL,
+  ingredient_rm INT NOT NULL,
+  ingredient_lot VARCHAR(20) NOT NULL,
+  equipment INT NOT NULL,
+  ingredient_actual INT NOT NULL
+);
+
 
 -- CREATE TABLE BatchRecord (
 --    lot_number VARCHAR(20) NOT NULL,
