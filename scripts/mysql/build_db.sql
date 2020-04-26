@@ -14,7 +14,7 @@ CREATE TABLE RawMaterial (
 );
 
 CREATE TABLE Supplier (
-    id INT AUTO_INCREMENT,
+    id INT NOT NULL,
     name VARCHAR(120) NOT NULL,
     phone VARCHAR(15),
     email VARCHAR(50),
@@ -28,23 +28,22 @@ CREATE TABLE Inventory (
     supplier INT NOT NULL,
     qty DOUBLE NOT NULL,
     rack VARCHAR(6) NOT NULL,
-    arrived DATE NOT NULL,
+    arrived DATETIME NOT NULL,
     PRIMARY KEY (lot),
     FOREIGN KEY (rm) REFERENCES RawMaterial(rm),
     FOREIGN KEY (supplier) REFERENCES Supplier(id)
 );
 
 
--- CREATE TABLE RawMaterialVendor (
---    vendor_id INT NOT NULL,
---    rm_number INT NOT NULL,
---    PRIMARY KEY (vendor_id, rm_number),
---    FOREIGN KEY (vendor_id) REFERENCES Vendor(vendor_id) ON DELETE CASCADE ON UPDATE CASCADE
--- );
+CREATE TABLE TrackInventoryChanges (
+    id INT NOT NULL AUTO_INCREMENT,
+    jdoc JSON NOT NULL,
+    PRIMARY KEY (id)
+);
 
 
 CREATE TABLE Product (
-    id INT NOT NULL AUTO_INCREMENT,
+    id INT NOT NULL,
     name VARCHAR(50) NOT NULL,
     serving_size DOUBLE DEFAULT 1000.0, -- Default: 1 kg (ratio = qty / serving_size)
     PRIMARY KEY (id)
@@ -58,18 +57,6 @@ CREATE TABLE ProductFormula (
     FOREIGN KEY (rm) REFERENCES RawMaterial(rm),
     PRIMARY KEY (product_id, rm)
 );
-
--- CREATE TABLE Inventory (
---    product_number INT DEFAULT NULL,
---    rm_number INT DEFAULT NULL,
---
---    -- mg for RM, mg for Products, and mg for RM and Products
---    rm_quantity DOUBLE(13,2) NOT NULL,
---
---    UNIQUE (product_number, rm_number),
---    FOREIGN KEY (rm_number) REFERENCES RawMaterial(rm_number) ON DELETE CASCADE ON UPDATE CASCADE,
---    FOREIGN KEY (product_number) REFERENCES Product(product_number) ON DELETE CASCADE ON UPDATE CASCADE
--- );
 
 
 -- CREATE TABLE ProductIngredient (
@@ -96,7 +83,7 @@ CREATE TABLE UserInv (
 
 
 CREATE TABLE PurchaseInventory (
-    id INT NOT NULL AUTO_INCREMENT,
+    id INT NOT NULL,
     rm INT NOT NULL,
     qty DOUBLE NOT NULL,
     supplier INT NOT NULL,
@@ -122,7 +109,7 @@ CREATE TABLE BatchRecord (
   product_id INT NOT NULL,
   batch_size INT NOT NULL,
   PRIMARY KEY (id),
-  FOREIGN KEY (product_id) REFERENCES Product(id),
+  FOREIGN KEY (product_id) REFERENCES Product(id)
 );
 
 CREATE TABLE BatchRecordIngredient (
@@ -144,23 +131,3 @@ CREATE TABLE BatchRecordIngredient (
 --    FOREIGN KEY (product_number) REFERENCES Product(product_number) ON DELETE CASCADE ON UPDATE CASCADE,
 --    FOREIGN KEY (order_id) REFERENCES PurchaseOrders(order_id) ON DELETE CASCADE ON UPDATE CASCADE
 -- );
-
-
--- DELIMITER //
--- CREATE PROCEDURE select_inventory (
---    IN lots SET,
---    OUT total INT,
--- )
--- BEGIN
---  SELECT *
---  FROM Inventory I
---  LEFT JOIN RawMaterial RM USING (rm)
---  LEFT JOIN Supplier S ON (id = supplier)
---  WHERE 1=1
---  AND lot IN lots;
---
---  SELECT COUNT(*) INTO total FROM world.city
---  WHERE CountryCode = country;
---
--- END //
--- DELIMITER ;
