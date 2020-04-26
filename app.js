@@ -25,6 +25,18 @@ async function onRequest(request, response) {
 
     try {
 
+        if (process.env.NODE_ENV !== 'production') {
+            response.setHeader('Access-Control-Allow-Origin', '*');
+            response.setHeader('Access-Control-Allow-Methods', '*');
+            response.setHeader('Access-Control-Allow-Headers', '*');
+
+            if (request.method === 'OPTIONS') {
+                response.statusCode = 200;
+                response.end();
+                return;
+            }
+        }
+
         // Access API endpoint
         let match = /^\/([-\w]+)/.exec(pathname);
 
