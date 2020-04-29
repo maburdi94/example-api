@@ -14,7 +14,7 @@ CREATE TABLE RawMaterial (
 );
 
 CREATE TABLE Supplier (
-    id INT NOT NULL,
+    id INT NOT NULL AUTO_INCREMENT,
     name VARCHAR(120) NOT NULL,
     phone VARCHAR(15),
     email VARCHAR(50),
@@ -28,18 +28,12 @@ CREATE TABLE Inventory (
     supplier INT NOT NULL,
     qty DOUBLE NOT NULL,
     rack VARCHAR(6) NOT NULL,
-    arrived DATETIME NOT NULL,
+    arrived TIMESTAMP NOT NULL,
     PRIMARY KEY (lot),
     FOREIGN KEY (rm) REFERENCES RawMaterial(rm),
     FOREIGN KEY (supplier) REFERENCES Supplier(id)
 );
 
-
-CREATE TABLE TrackInventoryChanges (
-    id INT NOT NULL AUTO_INCREMENT,
-    jdoc JSON NOT NULL,
-    PRIMARY KEY (id)
-);
 
 
 CREATE TABLE Product (
@@ -71,14 +65,31 @@ CREATE TABLE ProductFormula (
 
 
 CREATE TABLE UserInv (
+    id INT NOT NULL AUTO_INCREMENT,
     username VARCHAR(25) NOT NULL,
     password VARCHAR(20) NOT NULL,
     role VARCHAR(20) NOT NULL,
-    firstname VARCHAR(32) NOT NULL,
-    lastname VARCHAR(32) NOT NULL,
+    name VARCHAR(64) NOT NULL,
     email VARCHAR(64) NOT NULL,
     image VARCHAR(255) NOT NULL,
-    PRIMARY KEY (username)
+    PRIMARY KEY (id)
+);
+
+
+CREATE TABLE TrackInventoryChanges (
+    id INT NOT NULL AUTO_INCREMENT,
+    lot VARCHAR(20) NOT NULL,
+    event ENUM ('ADD', 'DELETE', 'UPDATE') NOT NULL,
+
+    data JSON,
+
+    -- UPDATE ONLY: {"key": [olValue, newValue], "key2": [oldValue, newValue], ...}
+    changes JSON,
+
+    user_id INT NOT NULL,
+    changed_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (user_id) REFERENCES UserInv(id)
 );
 
 
@@ -88,7 +99,7 @@ CREATE TABLE PurchaseInventory (
     qty DOUBLE NOT NULL,
     supplier INT NOT NULL,
     status ENUM ('INCOMPLETE', 'PENDING', 'RECEIVED') DEFAULT 'INCOMPLETE',
-    placed DATETIME DEFAULT CURRENT_TIMESTAMP,
+    placed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     FOREIGN KEY (rm) REFERENCES RawMaterial(rm),
     FOREIGN KEY (supplier) REFERENCES Supplier(id)

@@ -186,10 +186,13 @@
 -- ------------------------------------------------------------------------------
 -- Inserting users
 -- ------------------------------------------------------------------------------
-INSERT INTO UserInv VALUES('jayroalvarez1','admin', 'admin', 'Jayro', 'Alvarez', 'jayroalvarez@csu.fullerton.edu', 'jayroalvarez1_profile.jpeg');
-INSERT INTO UserInv VALUES('maburdi','admin','subadmin', 'Michael', 'Burdi', 'maburdi@csu.fullerton.edu', 'maburdi_profile.jpeg');
-INSERT INTO UserInv VALUES('alexho','admin','admin', 'Alex', 'Ho', 'hho114@csu.fullerton.edu', 'alexho_profile.jpeg');
-INSERT INTO UserInv VALUES('cphongsa','admin','user', 'Christopher', 'Phongsa', 'cphongsa@csu.fullerton.edu', 'cphongsa_profile.jpeg');
+INSERT INTO UserInv
+    (id, username, password, role, name, email, image)
+VALUES
+    (default, 'jayroalvarez1','admin', 'admin', 'Jayro Alvarez', 'jayroalvarez@csu.fullerton.edu', 'jayroalvarez1_profile.jpeg'),
+    (default, 'maburdi','admin','subadmin', 'Michael Burdi', 'maburdi@csu.fullerton.edu', 'maburdi_profile.jpeg'),
+    (default, 'alexho','admin','admin', 'Alex Ho', 'hho114@csu.fullerton.edu', 'alexho_profile.jpeg'),
+    (default, 'cphongsa','admin','user', 'Christopher Phongsa', 'cphongsa@csu.fullerton.edu', 'cphongsa_profile.jpeg');
 
 -- ------------------------------------------------------------------------------
 -- Inserting Purchase Order and Batch Records linked to that PO
