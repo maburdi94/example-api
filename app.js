@@ -18,6 +18,10 @@ const port = process.env.PORT || 3000;
 const server = http.createServer({}, onRequest);
 
 
+function isSSE(request) {
+    return request.headers['accept'] && request.headers['accept'].includes('text/event-stream');
+}
+
 async function onRequest(request, response) {
     console.debug('\x1b[36m%s\x1b[0m', request.method, request.url);
 
@@ -48,7 +52,7 @@ async function onRequest(request, response) {
                 return Auth.route(request, response);
             }
 
-            if ( auth(request, response) ) {
+            if ( auth(request, response) || isSSE(request)) {
 
                 switch (route) {
                     case 'suppliers':
@@ -81,6 +85,7 @@ async function onRequest(request, response) {
 
     response.end();
 }
+
 
 
 server.listen(port, () => {
