@@ -5,8 +5,10 @@
   "scripts": {
     "start": "nodemon app.js",
     "db": "mysql -u root -p -s < scripts/mysql/all_in_one.sql",
-    "suppImport": "py scripts/misc/suppImport.py",
-    "invImport": "py scripts/misc/invImport.py"
+    "presuppImport": "python3 -m pip install openpyxl mysql.connector",
+    "preinvImport": "python3 -m pip install openpyxl mysql.connector",
+    "suppImport": "python3 scripts/misc/suppImport.py",
+    "invImport": "python3 scripts/misc/invImport.py"
   },
   "dependencies": {
     "cookie": "0.4.0",
