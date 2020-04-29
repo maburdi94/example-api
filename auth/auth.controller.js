@@ -124,9 +124,6 @@ module.exports.signup = async function(request, response) {
  * @param response
  */
 module.exports.logout = function(request, response) {
-    response.writeHead(200, {
-        'Set-Cookie': `auth_token=""; secure; SameSite=Strict; expires=${new Date().toUTCString()}`,
-        location: '/public/login'
-    });
+    response.writeHead(200);
     response.end();
 };

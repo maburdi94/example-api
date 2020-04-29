@@ -16,7 +16,7 @@ async function onRequest(request, response) {
             return signup(request, response);
         }
     } else if (pathname === '/auth/logout') {
-        if (request.method === 'POST') {
+        if (request.method === 'DELETE') {
             return logout(request, response);
         }
     }
