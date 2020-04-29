@@ -11,11 +11,7 @@ const {
 } = require("./inventory.controller");
 
 
-const SSE = require('../utils/sse');
-
-// Use to push adjustments to client
-let adjustments = new SSE();
-
+const adjustments = require('./adjustments.sse');
 
 
 // Handle requests

@@ -3,7 +3,7 @@ let url = require('url');
 
 let {getPostData, getTokenPayload} = require('../utils/http');
 
-let adjustments = require('../utils/sse');
+let adjustments = require('./adjustments.sse');
 
 let mysql = require('../utils/sql');
 
