@@ -13,7 +13,7 @@ const connection = mysql.createConnection({
 
 const INGREDIENTS = loadIngredients();
 const SUPPLIERS = loadSuppliers();
-const PRODUCTS = loadProducts();
+// const PRODUCTS = loadProducts();
 
 const RAND_LOT = new RandExp(/L(18|19|20)[0-9]{4}/);
 const RAND_MFR = new RandExp(/([SLZ])-[A-Z]{2}[0-9]{3}/);
@@ -21,57 +21,55 @@ const RAND_RACK = new RandExp(/([ABC]-[0-9])/);
 const RAND_PHONE = new RandExp(/\([1-9]{3}\)[1-9]{3}-[0-9]{4}/);
 
 
-async function insertProducts() {
+// async function insertProducts() {
+//
+//     let id = 0;
+//
+//     for (let product_name of PRODUCTS) {
+//         let pSql = `INSERT INTO Product (id, name) VALUES (${id}, \'${product_name}\');`;
+//
+//         connection.query(pSql, async function (err, results) {
+//
+//             if (err) {
+//                 console.error(err);
+//                 return;
+//             }
+//
+//             let count = Math.floor(Math.random() * INGREDIENTS.length);
+//             let ingredients = await getRandomIngredient(count);
+//             let amountAvailable = 1000.0; // default serving_size
+//
+//
+//             try {
+//                 for (let ing of ingredients) {
+//
+//                     let qty = Number.parseFloat(Math.max((Math.random() * amountAvailable), 0) + 0.01).toFixed(3);
+//
+//                     let iSql = `INSERT INTO ProductFormula VALUES (
+//                         ${id},
+//                         ${ing.rm},
+//                         ${qty});`;
+//
+//                     amountAvailable -= qty;
+//
+//                     connection.query(iSql);
+//                 }
+//             } catch (e) {
+//                 console.log(e);
+//             }
+//         });
+//
+//
+//         id++;
+//     }
+// }
 
-    for (let product_name of PRODUCTS) {
-        let pSql = `INSERT INTO Product (name) VALUES (\'${product_name}\');`;
 
-        connection.query(pSql, async function (err, results) {
-
-            if (err) {
-                console.error(err);
-                return;
-            }
-
-           console.log(results);
-
-            let {insertId: productId} = results;
-
-            let count = Math.floor(Math.random() * INGREDIENTS.length);
-            let ingredients = await getRandomIngredient(count);
-            let amountAvailable = 1000.0; // default serving_size
-
-            try {
-                for (let ing of ingredients) {
-
-                    let qty = Number.parseFloat(Math.max((Math.random() * amountAvailable), 0) + 0.01).toFixed(3);
-
-                    let iSql = `INSERT INTO ProductFormula VALUES (
-                ${productId},
-                ${ing.rm},
-                ${qty});`;
-
-                    amountAvailable -= qty;
-
-                    connection.query(iSql);
-                }
-            } catch (e) {
-                console.log(e);
-            }
-        });
-
-    }
-}
-
-
-function insertIngredients() {
-    console.log('INSERTING INGREDIENTS')
+async function insertIngredients() {
+    let id = 0;
     for (let name of INGREDIENTS) {
-        let sql = `INSERT INTO RawMaterial (name, type, threshold) 
-        VALUES(\'${name}\',\'\', ${~~(Math.random()*2) ? 'NULL' : 1500});`;
-        connection.query(sql, function (err, results) {
-            console.log(err, results)
-        });
+        await connection.query(`INSERT INTO RawMaterial 
+            VALUES(${id++}, \'${name}\',\'\', ${~~(Math.random()*2) ? 'NULL' : 1500});`);
     }
 }
 
@@ -110,6 +108,9 @@ async function insertInventory(count = 100) {
 
 
 function insertSuppliers() {
+
+    let id = 0;
+
     for (let name of SUPPLIERS) {
 
         let email = name.replace(/\s+/, '');
@@ -118,7 +119,8 @@ function insertSuppliers() {
 
         let phone = RAND_PHONE.gen();
 
-        let sql = `INSERT INTO Supplier (name, phone, email) VALUES(
+        let sql = `INSERT INTO Supplier (id, name, phone, email) VALUES(
+            ${id++},
             \'${name}\',
             \'${phone}\',
             \'${email}\'
@@ -175,7 +177,15 @@ function getRandomDate(start, end) {
 
 
 
-insertIngredients();
-insertSuppliers();
-insertInventory();
-insertProducts();
+try {
+    insertIngredients();
+    insertSuppliers();
+    insertInventory();
+// insertProducts();
+} catch (e) {
+    console.error(e);
+}
+
+
+console.log('Inserts Succeeded!');
+process.exit();
