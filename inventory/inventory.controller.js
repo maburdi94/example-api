@@ -1,7 +1,9 @@
 
 let url = require('url');
 
-let {getPostData} = require('../utils/http');
+let {getPostData, getTokenPayload} = require('../utils/http');
+
+let adjustments = require('../utils/sse');
 
 let mysql = require('../utils/sql');
 
@@ -47,7 +49,7 @@ module.exports.getInventory = async function(request, response) {
          qty,
          type,
          S.name as supplier,
-         arrived,
+         DATE_FORMAT(arrived, '%Y-%m-%d %h:%i %p') as arrived,
          threshold,
          rack
          FROM Inventory I
@@ -63,7 +65,7 @@ module.exports.getInventory = async function(request, response) {
         SELECT * FROM (${innerSelect}) T
              ${sort ? `ORDER BY ${sort} ${order}` : ''}
              ${pageSize ? `LIMIT ${(page - 1) * pageSize}, ${pageSize}` : ''};
-             
+         
          SELECT Count(*) as total FROM (${innerSelect}) T;`);
 
         result = {
@@ -81,138 +83,203 @@ module.exports.getInventory = async function(request, response) {
     response.end(JSON.stringify(result, null, 2));
 };
 
-
-
-
-
 module.exports.deleteInventory = async function(request, response) {
 
     let {query: params} = url.parse(request.url, true);
 
     let lots = Array.isArray(params['lot']) ? params['lot'] : [params['lot']];
 
-    let connection = await mysql.getConnection();
+    let user = getTokenPayload(request, response);
 
+    let connection = await mysql.getConnection();
     let totalAffected = 0;
+
     try {
-        await connection.query('START TRANSACTION');
+
+        connection.query('START TRANSACTION');
 
         for (let lot of lots) {
-            let [results] = await mysql.query(`DELETE FROM Inventory WHERE lot = \'${lot}\';`);
-            totalAffected += results.affectedRows;
+
+            await connection.query(`
+                SELECT * FROM Inventory WHERE lot = \'${lot}\'; 
+                DELETE FROM Inventory WHERE lot = \'${lot}\';`)
+                .then(function ([[[item], {affectedRows}]]) {
+                    if (params['tracking']) {
+                        connection.query(`
+                            INSERT INTO TrackInventoryChanges 
+                            VALUES (default, \'${lot}\', \'DELETE\', \'${JSON.stringify(item)}\', null, ${user.id}, default);`)
+                            .then(function (results) {
+                                let [{insertId}] = results;
+                                connection.query(`
+                                    SELECT 
+                                        TrackInventoryChanges.*, 
+                                        UserInv.username, 
+                                        UserInv.role, 
+                                        UserInv.name,
+                                        UserInv.image
+                                    FROM TrackInventoryChanges, UserInv 
+                                    WHERE user_id = UserInv.id 
+                                    AND TrackInventoryChanges.id = ${insertId}`)
+                                    .then(function ([[data]]) {
+                                        adjustments.emit(data);
+                                    });
+                            })
+                    }
+                });
+
         }
 
-        await connection.query('COMMIT');
+        connection.query('COMMIT');
         response.statusCode = 200;
 
     } catch (e) {
+        console.error(e);
 
         await connection.query('ROLLBACK');
         response.statusCode = 500;
+
     }
 
     response.setHeader('Content-Type', 'application/json');
     response.end(JSON.stringify({totalAffected}, null, 2));
 };
 
-
-
-
-
-
 module.exports.addInventory = async function(request, response) {
 
     let item = await getPostData(request);
 
+    let {query: params} = url.parse(request.url, true);
+
+    let user = getTokenPayload(request, response);
+
     let {
         rm,
-        type,
-        name,
         lot,
         mfr,
         supplier,
         qty,
         arrived,
         rack,
-    } = item,
-        threshold;
-
-    let result = {},
-        errors = [];
+    } = item;
 
 
-    // Find if a Raw Material already exists for this RM #.
-    let [results] = await mysql.query(`SELECT * FROM RawMaterial WHERE rm = ${rm}`);
-
-    if (!(results.length)) {
-        errors.push(`Invalid request. Could not find raw material with RM ${rm}`);
-    }
-
-    // if (!/L(18|19|20)[0-9]{4}/.test(lot)) {
-    //     errors.push(`Invalid lot #: ${lot}. Must have form: L[2-digit year][####].`);
-    // }
+    arrived = new Date(arrived).toISOString().replace(/[TZ]/g, ' ');
 
     try {
-        new Date(arrived)
+
+        mysql.query(`
+            INSERT INTO Inventory 
+            VALUES (\'${lot}\',${rm},\'${mfr}\',${supplier},${qty},\'${rack}\',\'${arrived}\')`)
+            .then(function (err, results) {
+                if (params['tracking']) {
+                    mysql.query(`
+                        INSERT INTO TrackInventoryChanges 
+                        VALUES (default,\'${lot}\',\'ADD\',\'${JSON.stringify(item)}\',null,${user.id},default);`)
+                        .then(function (results) {
+                            let [{insertId}] = results;
+                            mysql.query(`
+                                SELECT 
+                                    TrackInventoryChanges.*, 
+                                    UserInv.username, 
+                                    UserInv.role, 
+                                    UserInv.name,
+                                    UserInv.image 
+                                FROM TrackInventoryChanges, UserInv 
+                                WHERE user_id = UserInv.id 
+                               AND TrackInventoryChanges.id = ${insertId}`)
+                                .then(function ([[data]]) {
+                                    adjustments.emit(data);
+                                });
+                        });
+                }
+            });
+
+
+        response.statusCode = 200;
     } catch (e) {
-        errors.push(new Error("Date arrived must be a valid date string."));
+        console.error(e);
+        response.statusCode = 400;
     }
 
-    [results] = await mysql.query(`SELECT id FROM Supplier WHERE name = \'${supplier}\';`);
+    response.end();
+};
 
-    if (!(results.length)) {
-        let [results] = await mysql.query(`INSERT INTO Supplier (name) VALUES (\'${supplier}\');`);
-        supplier = results.insertId;
-    } else {
-        supplier = results[0].id;
-    }
+module.exports.updateInventory = async function (request, response) {
 
+    let {data: item, changes} = await getPostData(request);
 
-    if (!errors.length) {
+    let {query: params} = url.parse(request.url, true);
 
-        let sql = `INSERT INTO Inventory (
-            lot,
-            rm,
-            mfr,
-            supplier,
-            qty,
-            rack,
-            arrived
-            ) VALUES (
-                \'${lot}\',
-                ${rm},
-                \'${mfr}\',
-                ${supplier},
-                ${qty},
-                \'${rack}\',
-                \'${arrived}\'
-            )`;
+    let user = getTokenPayload(request, response);
 
-        console.log(sql);
+    let {lot} = item;
 
-        await mysql.query(sql);
+    try {
+
+        mysql.query(`
+            UPDATE Inventory 
+            SET ${Object.entries(changes).map(([key, [_, newValue]]) => key + ' = ' + newValue).join(',\n')}
+            WHERE lot = \'${lot}\';`)
+            .then(function (results) {
+                if (params['tracking']) {
+                    mysql.query(`
+                        INSERT INTO TrackInventoryChanges 
+                        VALUES (default,\'${lot}\',\'UPDATE\',\'${JSON.stringify(item)}\',\'${JSON.stringify(changes)}\',${user.id},default);`)
+                        .then(function (results) {
+                            let [{insertId}] = results;
+                            mysql.query(`
+                                SELECT 
+                                    TrackInventoryChanges.*, 
+                                    UserInv.username, 
+                                    UserInv.role, 
+                                    UserInv.name,
+                                    UserInv.image 
+                                FROM TrackInventoryChanges, UserInv 
+                                WHERE user_id = UserInv.id 
+                                AND TrackInventoryChanges.id = ${insertId}`)
+                                .then(function ([[data]]) {
+                                    console.log(data);
+                                    adjustments.emit(data);
+                                });
+                        });
+                }
+            });
+
 
         response.statusCode = 200;
 
-    } else {
-
-        response.statusCode = 400;
-        result.errors = errors.join('\n');
+    } catch (e) {
+        console.log(e);
+        response.statusCode = 500;
     }
-
-
-    response.write(JSON.stringify(result));
-
 
 
     response.end();
 };
 
 
+module.exports.getTracking = async function(request, response) {
+
+    let [results] = await mysql.query(`
+        SELECT 
+            TrackInventoryChanges.*, 
+            UserInv.username, 
+            UserInv.role, 
+            UserInv.name,
+            UserInv.image 
+        FROM TrackInventoryChanges, UserInv 
+        WHERE user_id = UserInv.id;`);
+
+    response.statusCode = 200;
+    response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify(results, null, 2));
+};
+
+
 
 module.exports.getSuppliers =  async function (request, response) {
 
-    let [results] = await mysql.query(`SELECT DISTINCT name, name as value FROM Supplier;`);
+    let [results] = await mysql.query(`SELECT DISTINCT id as value, name as title FROM Supplier ORDER BY name;`);
 
     response.statusCode = 200;
     response.setHeader('Content-Type', 'application/json');
@@ -227,114 +294,6 @@ module.exports.getRawMaterials =  async function (request, response) {
     response.setHeader('Content-Type', 'application/json');
     response.end(JSON.stringify(results, null, 2));
 };
-
-
-/**
- * Expects the payload to be an Array<Raw Material>.
- * If only one item is being updated, it should still be inside an Array as the single entry.
- * @param request
- * @param response
- * @return {Promise<void>}
- */
-module.exports.updateInventory = async function (request, response) {
-
-    let method = request.method;
-
-    let data = await getPostData(request);
-
-    if (method === 'PUT') {
-
-        let items = Array.isArray(data) ? data : [data];
-
-        let connection = await mysql.getConnection();
-
-        try {
-            await connection.query('START TRANSACTION');
-
-            for (let item of items) {
-                // await connection.query(`
-                //     UPDATE Inventory
-                //     SET
-                //         qty = ${item.qty},
-                //         rack = \'${item.rack}\'
-                //     WHERE
-                //         lot = \'${item.lot}\';`);
-            }
-
-            await connection.query('COMMIT');
-            response.statusCode = 200;
-
-        } catch (e) {
-
-            await connection.query('ROLLBACK');
-            response.statusCode = 500;
-        }
-
-    } else if (method === 'PATCH') {
-
-        let {query: params} = url.parse(request.url, true);
-
-        let {
-            rm,
-            type,
-            name,
-            lot,
-            mfr,
-            supplier,
-            qty,
-            arrived,
-            rack,
-        } = data;
-
-        let sql = `UPDATE Inventory
-            SET
-
-        `;
-
-        let fields = [];
-        if (lot) fields.push(`lot = \'${lot}\'`);
-        if (rm) fields.push(`rm = ${rm}`);
-        // if (type) fields.push(`type = \'${rm}\'`);
-        // if (name) fields.push(`name = \'${rm}\'`);
-        if (mfr) fields.push(`mfr = \'${mfr}\'`);
-        if (supplier) {
-
-            let [results] = await mysql.query(`SELECT id FROM Supplier WHERE name = \'${supplier}\';`);
-
-            if (!(results.length)) {
-                [results] = await mysql.query(`INSERT INTO Supplier (name) VALUES (\'${supplier}\');`);
-                supplier = results.insertId;
-            } else {
-                supplier = results[0].id;
-            }
-
-            fields.push(`supplier = ${supplier}`);
-        }
-        if (qty) fields.push(`qty = ${qty}`);
-        if (arrived) {
-            fields.push(`arrived = \'${new Date(arrived).toISOString().replace(/[TZ]/g, ' ')}\'`);
-        }
-        if (rack) fields.push(`rack = UPPER(\'${rack}\')`);
-
-        sql += fields.join(',\n');
-
-        sql += ` WHERE lot = \'${params.lot}\';`;
-
-        try {
-            await mysql.query(sql);
-            response.statusCode = 200;
-        } catch (e) {
-            console.log(e);
-            response.statusCode = 500;
-        }
-
-    }
-
-    response.end();
-};
-
-
-
 
 module.exports.getPurchases = async function (request, response, {searchParams: params}) {
     // This is where we will put the response payload

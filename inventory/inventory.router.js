@@ -5,11 +5,18 @@ const {
     addInventory,
     updateInventory,
     deleteInventory,
-    getPurchases,
-    getChanges,
+    getTracking,
     getSuppliers,
     getRawMaterials
 } = require("./inventory.controller");
+
+
+const SSE = require('../utils/sse');
+
+// Use to push adjustments to client
+let adjustments = new SSE();
+
+
 
 // Handle requests
 async function onRequest(request, response) {
@@ -17,7 +24,7 @@ async function onRequest(request, response) {
     let method = request.method;
     let url = request.url || request.path;
 
-    let path = [...url.matchAll(/\/([-\w]+)/)].map(arr => arr[1]);
+    let path = [...url.matchAll(/\/([-\w]+)/g)].map(arr => arr[1]);
 
     if (path[0] === 'inventory') {
 
@@ -27,12 +34,14 @@ async function onRequest(request, response) {
             // if (method === 'PUT') return updateInventory(request, response);
             if (method === 'PATCH') return updateInventory(request, response);
             if (method === 'DELETE') return deleteInventory(request, response);
-        } else if (path[1] === 'changes') {
-            if (method === 'GET') return getChanges(request, response);
-            // if (method === 'POST') return addInventory(request, response);
+        } else if (path[1] === 'tracking') {
+            if (method === 'GET') return getTracking(request, response);
+            // if (method === 'POST') return addTracking(request, response);
             // if (method === 'PUT') return updateInventory(request, response);
             // if (method === 'PATCH') return updateInventory(request, response);
             // if (method === 'DELETE') return deleteInventory(request, response);
+        } else if (path[1] === 'adjustments') {
+            return adjustments.handleRequest(request, response);
         }
 
     } else if (path[0] === 'suppliers') {
