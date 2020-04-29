@@ -268,7 +268,8 @@ module.exports.getTracking = async function(request, response) {
             UserInv.name,
             UserInv.image 
         FROM TrackInventoryChanges, UserInv 
-        WHERE user_id = UserInv.id;`);
+        WHERE user_id = UserInv.id
+        ORDER BY changed_on DESC;`);
 
     response.statusCode = 200;
     response.setHeader('Content-Type', 'application/json');
